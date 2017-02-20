@@ -466,12 +466,17 @@ typedef enum _PUBSUB_TYPE {
 #define REDIS_ERR_SYNC_MSG    "MASTERDOWN Link with MASTER is down and slave-serve-stale-data is set to 'no'"
 #define REDIS_ERR_SYNC_KW     "MASTERDOWN"
 
+/* Transaction modes */
+#define ATOMIC   0
+#define MULTI    1
+#define PIPELINE 2
+
 #define IF_ATOMIC() if (redis_sock->mode == ATOMIC)
 #define IF_NOT_ATOMIC() if (redis_sock->mode != ATOMIC)
-#define IF_MULTI() if (redis_sock->mode == MULTI)
-#define IF_NOT_MULTI() if (redis_sock->mode != MULTI)
-#define IF_PIPELINE() if (redis_sock->mode == PIPELINE)
-#define IF_NOT_PIPELINE() if (redis_sock->mode != PIPELINE)
+#define IF_MULTI() if (redis_sock->mode & MULTI)
+#define IF_NOT_MULTI() if (!(redis_sock->mode & MULTI))
+#define IF_PIPELINE() if (redis_sock->mode & PIPELINE)
+#define IF_NOT_PIPELINE() if (!(redis_sock->mode & PIPELINE))
 
 #define PIPELINE_ENQUEUE_COMMAND(cmd, cmd_len) do { \
     if (redis_sock->pipeline_cmd == NULL) { \
@@ -514,7 +519,7 @@ typedef enum _PUBSUB_TYPE {
     efree(cmd);
 
 #define REDIS_PROCESS_RESPONSE_CLOSURE(function, closure_context) \
-    IF_MULTI() { \
+    IF_NOT_PIPELINE() { \
         if (redis_response_enqueued(redis_sock TSRMLS_CC) != SUCCESS) { \
             RETURN_FALSE; \
         } \
@@ -590,7 +595,8 @@ typedef enum _PUBSUB_TYPE {
 #define IS_LEX_ARG(s,l) \
     (l>0 && (*s=='(' || *s=='[' || (l==1 && (*s=='+' || *s=='-'))))
 
-typedef enum {ATOMIC, MULTI, PIPELINE} redis_mode;
+#define REDIS_ENABLE_MODE(redis_sock, m) (redis_sock->mode |= m)
+#define REDIS_DISABLE_MODE(redis_sock, m) (redis_sock->mode &= ~m)
 
 typedef struct fold_item {
     zval * (*fun)(INTERNAL_FUNCTION_PARAMETERS, void *, ...);
@@ -625,7 +631,7 @@ typedef struct {
     char           *prefix;
     int            prefix_len;
 
-    redis_mode     mode;
+    short          mode;
     fold_item      *head;
     fold_item      *current;
 
