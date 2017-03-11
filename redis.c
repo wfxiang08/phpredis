@@ -2281,6 +2281,8 @@ PHP_METHOD(Redis, multi)
             IF_PIPELINE() {
                 PIPELINE_ENQUEUE_COMMAND(cmd, cmd_len);
                 efree(cmd);
+                REDIS_ENABLE_MODE(redis_sock, MULTI);
+                REDIS_SAVE_CALLBACK(redis_boolean_response, NULL);
             } else {
                 SOCKET_WRITE_COMMAND(redis_sock, cmd, cmd_len)
                 efree(cmd);
@@ -2291,8 +2293,8 @@ PHP_METHOD(Redis, multi)
                     RETURN_FALSE;
                 }
                 efree(resp);
+                REDIS_ENABLE_MODE(redis_sock, MULTI);
             }
-            REDIS_ENABLE_MODE(redis_sock, MULTI);
         }
     } else {
         RETURN_FALSE;
@@ -2371,6 +2373,7 @@ PHP_METHOD(Redis, exec)
             PIPELINE_ENQUEUE_COMMAND(cmd, cmd_len);
             efree(cmd);
             REDIS_DISABLE_MODE(redis_sock, MULTI);
+            REDIS_SAVE_CALLBACK(redis_boolean_response, NULL);
             RETURN_ZVAL(getThis(), 1, 0);
         }
         SOCKET_WRITE_COMMAND(redis_sock, cmd, cmd_len)

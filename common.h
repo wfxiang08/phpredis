@@ -497,14 +497,14 @@ typedef enum _PUBSUB_TYPE {
 }
 
 #define REDIS_SAVE_CALLBACK(callback, closure_context) do { \
-    fold_item *f1 = malloc(sizeof(fold_item)); \
-    f1->fun = (void *)callback; \
-    f1->ctx = closure_context; \
-    f1->next = NULL; \
+    fold_item *fi = malloc(sizeof(fold_item)); \
+    fi->fun = (void *)callback; \
+    fi->ctx = closure_context; \
+    fi->next = NULL; \
     if (redis_sock->current) { \
-        redis_sock->current->next = f1; \
+        redis_sock->current->next = fi; \
     } \
-    redis_sock->current = f1; \
+    redis_sock->current = fi; \
     if (NULL == redis_sock->head) { \
         redis_sock->head = redis_sock->current; \
     } \
