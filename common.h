@@ -473,6 +473,7 @@ typedef enum _PUBSUB_TYPE {
 #define IF_PIPELINE() if (redis_sock->mode == PIPELINE)
 #define IF_NOT_PIPELINE() if (redis_sock->mode != PIPELINE)
 
+// 在pipeline模式下，将cmd添加到pipeline_cmd上面，进行queue
 #define PIPELINE_ENQUEUE_COMMAND(cmd, cmd_len) do { \
     if (redis_sock->pipeline_cmd == NULL) { \
         redis_sock->pipeline_cmd = estrndup(cmd, cmd_len); \
@@ -505,6 +506,7 @@ typedef enum _PUBSUB_TYPE {
     } \
 } while (0)
 
+// 如何处理command, pipeline模式下将数据进行queue, 其他情况下直接转发给后端的redis
 #define REDIS_PROCESS_REQUEST(redis_sock, cmd, cmd_len) \
     IF_PIPELINE() { \
         PIPELINE_ENQUEUE_COMMAND(cmd, cmd_len); \
@@ -600,7 +602,7 @@ typedef struct fold_item {
 
 /* {{{ struct RedisSock */
 typedef struct {
-    php_stream     *stream;
+    php_stream     *stream; // 后端的redis connection
     char           *host;
     short          port;
     char           *auth;

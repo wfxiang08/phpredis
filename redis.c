@@ -486,6 +486,7 @@ free_redis_object(zend_object *object)
 
     zend_object_std_dtor(&redis->std TSRMLS_CC);
     if (redis->sock) {
+        // 关闭socket
         redis_sock_disconnect(redis->sock TSRMLS_CC);
         redis_free_socket(redis->sock);
     }
@@ -519,6 +520,7 @@ redis_sock_get_instance(zval *id TSRMLS_DC, int no_throw)
 #if (PHP_MAJOR_VERSION < 7)
         redis = (redis_object *)zend_objects_get_address(id TSRMLS_CC);
 #else
+        // 从php object获取redis_object
         redis = (redis_object *)((char *)Z_OBJ_P(id) - XtOffsetOf(redis_object, std));
 #endif
         if (redis->sock) {
@@ -566,6 +568,7 @@ PHP_REDIS_API RedisSock *redis_sock_get_connected(INTERNAL_FUNCTION_PARAMETERS) 
     // return NULL
     if((zend_parse_method_parameters(ZEND_NUM_ARGS() TSRMLS_CC, getThis(), "O",
        &object, redis_ce) == FAILURE) ||
+        // 如何获取socket?
        (redis_sock = redis_sock_get(object TSRMLS_CC, 1)) == NULL ||
        redis_sock->status != REDIS_SOCK_STATUS_CONNECTED)
     {
@@ -773,6 +776,7 @@ PHP_METHOD(Redis,__destruct) {
  */
 PHP_METHOD(Redis, connect)
 {
+    // 非持久化连接
     if (redis_connect(INTERNAL_FUNCTION_PARAM_PASSTHRU, 0) == FAILURE) {
         RETURN_FALSE;
     } else {
@@ -785,6 +789,7 @@ PHP_METHOD(Redis, connect)
  */
 PHP_METHOD(Redis, pconnect)
 {
+    // 持久化连接
     if (redis_connect(INTERNAL_FUNCTION_PARAM_PASSTHRU, 1) == FAILURE) {
         RETURN_FALSE;
     } else {
@@ -894,6 +899,7 @@ PHP_METHOD(Redis, close)
 {
     RedisSock *redis_sock = redis_sock_get_connected(INTERNAL_FUNCTION_PARAM_PASSTHRU);
 
+    // 关闭
     if (redis_sock && redis_sock_disconnect(redis_sock TSRMLS_CC)) {
         RETURN_TRUE;
     }
@@ -2245,6 +2251,8 @@ PHP_METHOD(Redis, multi)
     zval *object;
     zend_long multi_value = MULTI;
 
+    // 读取参数:
+    // object, multi_value
     if (zend_parse_method_parameters(ZEND_NUM_ARGS() TSRMLS_CC, getThis(),
                                      "O|l", &object, redis_ce, &multi_value)
                                      == FAILURE)
@@ -2254,11 +2262,14 @@ PHP_METHOD(Redis, multi)
 
     /* if the flag is activated, send the command, the reply will be "QUEUED"
      * or -ERR */
+    // 获取redis sock
     if ((redis_sock = redis_sock_get(object TSRMLS_CC, 0)) == NULL) {
         RETURN_FALSE;
     }
 
     if (multi_value == PIPELINE) {
+        // 重点关注这个:
+        // 如果在pipeline 或者 multi 中，则报错
         IF_PIPELINE() {
             php_error_docref(NULL TSRMLS_CC, E_WARNING,
                 "Already in pipeline mode");
@@ -2267,6 +2278,7 @@ PHP_METHOD(Redis, multi)
                 "Can't activate pipeline in multi mode!");
             RETURN_FALSE;
         } else {
+            // 切换状态
             free_reply_callbacks(redis_sock);
             redis_sock->mode = PIPELINE;
         }
@@ -2279,6 +2291,8 @@ PHP_METHOD(Redis, multi)
                 "Can't activate multi in pipeline mode!");
             RETURN_FALSE;
         } else {
+            // multi如何处理呢?
+            // multi会做queue处理
             cmd_len = redis_cmd_format_static(&cmd, "MULTI", "");
             SOCKET_WRITE_COMMAND(redis_sock, cmd, cmd_len)
             efree(cmd);
@@ -2304,17 +2318,26 @@ PHP_METHOD(Redis, discard)
     RedisSock *redis_sock;
     zval *object;
 
+    //
+    // $redis->discard()
+    //
+    // getThis() 和 object 关闭
+    //
     if (zend_parse_method_parameters(ZEND_NUM_ARGS() TSRMLS_CC, getThis(), "O",
                                      &object, redis_ce) == FAILURE) {
         RETURN_FALSE;
     }
 
+    // 获取redis_sock
     if ((redis_sock = redis_sock_get(object TSRMLS_CC, 0)) == NULL) {
         RETURN_FALSE;
     }
 
+    // 切换状态
     redis_sock->mode = ATOMIC;
     free_reply_callbacks(redis_sock);
+
+    // 继续往后端发送数据
     redis_send_discard(INTERNAL_FUNCTION_PARAM_PASSTHRU, redis_sock);
 }
 
@@ -2385,22 +2408,32 @@ PHP_METHOD(Redis, exec)
     }
 
     IF_PIPELINE() {
+        // XXX: 重点关注这个
+        // 如果没有cmds, 则直接返回空数组
+        //
         if (redis_sock->pipeline_cmd == NULL) {
             /* Empty array when no command was run. */
             array_init(return_value);
         } else {
+            // 批量提交命令
             if (redis_sock_write(redis_sock, redis_sock->pipeline_cmd,
                     redis_sock->pipeline_len TSRMLS_CC) < 0) {
+                // 执行失败
                 ZVAL_FALSE(return_value);
             } else {
+                // 返回数据
                 array_init(return_value);
                 redis_sock_read_multibulk_multi_reply_loop(
                     INTERNAL_FUNCTION_PARAM_PASSTHRU, redis_sock, return_value, 0);
             }
+
+            // 执行完毕，清空数据
             efree(redis_sock->pipeline_cmd);
             redis_sock->pipeline_cmd = NULL;
             redis_sock->pipeline_len = 0;
         }
+
+        // 返回数据
         free_reply_callbacks(redis_sock);
         redis_sock->mode = ATOMIC;
     }
@@ -3621,6 +3654,7 @@ PHP_METHOD(Redis, rawcommand) {
  *     proto array Redis::command('info', string cmd)
  *     proto array Redis::command('getkeys', array cmd_args) */
 PHP_METHOD(Redis, command) {
+    // 如何执行Command
     REDIS_PROCESS_CMD(command, redis_read_variant_reply);
 }
 /* }}} */
