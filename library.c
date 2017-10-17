@@ -132,6 +132,7 @@ static void redis_error_throw(char *err, size_t err_len TSRMLS_DC) {
     }
 }
 
+// 关闭Redis
 PHP_REDIS_API void redis_stream_close(RedisSock *redis_sock TSRMLS_DC) {
     if (!redis_sock->persistent) {
         php_stream_close(redis_sock->stream);
@@ -505,6 +506,7 @@ PHP_REDIS_API char *redis_sock_read(RedisSock *redis_sock, int *buf_len TSRMLS_D
         return NULL;
     }
 
+    // 如果读取数据出现问题，则标记为失败
     if(php_stream_gets(redis_sock->stream, inbuf, 1024) == NULL) {
         REDIS_STREAM_CLOSE_MARK_FAILED(redis_sock);
         zend_throw_exception(redis_exception_ce, "read error on connection",
@@ -1736,6 +1738,8 @@ PHP_REDIS_API int redis_sock_read_multibulk_reply(INTERNAL_FUNCTION_PARAMETERS,
     if(-1 == redis_check_eof(redis_sock, 0 TSRMLS_CC)) {
         return -1;
     }
+
+    // 数据读取出错
     if(php_stream_gets(redis_sock->stream, inbuf, 1024) == NULL) {
         REDIS_STREAM_CLOSE_MARK_FAILED(redis_sock);
         zend_throw_exception(redis_exception_ce, "read error on connection", 0

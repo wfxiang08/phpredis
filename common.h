@@ -566,6 +566,7 @@ typedef enum _PUBSUB_TYPE {
         REDIS_PROCESS_RESPONSE_CLOSURE(resp_func, ctx) \
     }
 
+// 如何标记为失败呢?
 #define REDIS_STREAM_CLOSE_MARK_FAILED(redis_sock) \
     redis_stream_close(redis_sock TSRMLS_CC); \
     redis_sock->stream = NULL; \
